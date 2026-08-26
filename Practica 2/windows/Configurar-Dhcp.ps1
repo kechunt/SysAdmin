@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 [CmdletBinding()]
 param()
 
@@ -77,7 +77,12 @@ if (-not $scope) {
     Write-Host 'Ámbito existente actualizado (ejecución idempotente).' -ForegroundColor Green
 }
 
-Set-DhcpServerv4OptionValue -ScopeId $ScopeId -Router $gateway -DnsServer $dns
+# Windows intenta consultar el DNS antes de aceptarlo. BIND u otro DNS de Linux
+# (Práctica 1) suele fallar esa validación aunque sirva resoluciones correctamente.
+Set-DhcpServerv4OptionValue -ScopeId $ScopeId -Router $gateway
+Set-DhcpServerv4OptionValue -ScopeId $ScopeId -DnsServer $dns -Force
+Write-Host "Opciones del ámbito: gateway $gateway, DNS $dns." -ForegroundColor Green
+
 Set-Service -Name DHCPServer -StartupType Automatic
 Start-Service -Name DHCPServer
 
@@ -99,18 +104,43 @@ function Show-DhcpDiagnostic {
     Get-Service DHCPServer | Format-Table Status, Name, StartType -AutoSize
     Write-Host '--- Ámbito ---' -ForegroundColor Cyan
     Get-DhcpServerv4Scope -ScopeId $ScopeId | Format-Table ScopeId, Name, State, StartRange, EndRange, LeaseDuration -AutoSize
+    Write-Host '--- Opciones (router / DNS) ---' -ForegroundColor Cyan
+    Get-DhcpServerv4OptionValue -ScopeId $ScopeId -ErrorAction SilentlyContinue |
+        Format-Table OptionId, Name, Value -AutoSize
     Write-Host '--- Concesiones ---' -ForegroundColor Cyan
     Get-DhcpServerv4Lease -ScopeId $ScopeId -ErrorAction SilentlyContinue |
         Format-Table IPAddress, HostName, ClientId, AddressState, LeaseExpiryTime -AutoSize
 }
 
+function Show-ClientRenewalTest {
+    Write-Host "`n--- Prueba de cliente (release / renew) ---" -ForegroundColor Cyan
+    Write-Host 'Ejecute la renovación EN EL NODO CLIENTE (no en este servidor).'
+    Write-Host ''
+    Write-Host 'Windows (PowerShell o cmd elevado):' -ForegroundColor Yellow
+    Write-Host '  ipconfig /release'
+    Write-Host '  ipconfig /renew'
+    Write-Host '  ipconfig /all'
+    Write-Host '  O: .\Probar-Cliente.ps1'
+    Write-Host ''
+    Write-Host 'Linux:' -ForegroundColor Yellow
+    Write-Host '  sudo dhclient -r && sudo dhclient -v'
+    Write-Host '  ip -4 addr show'
+    Write-Host '  ip route | grep default'
+    Write-Host '  cat /etc/resolv.conf'
+    Write-Host '  O: sudo ./probar-cliente.sh'
+    Write-Host ''
+    Write-Host 'Integridad esperada: IPv4 en 192.168.100.50-150, gateway 192.168.100.1, DNS de la Práctica 1.'
+    Write-Host 'Después, pulse [2] aquí para ver la concesión activa en el servidor.'
+}
+
 Show-DhcpDiagnostic
 do {
-    $option = Read-Host '[1] Diagnóstico [2] Leases [3] Salir'
+    $option = Read-Host '[1] Diagnóstico [2] Leases [3] Prueba cliente [4] Salir'
     switch ($option) {
         '1' { Show-DhcpDiagnostic }
         '2' { Get-DhcpServerv4Lease -ScopeId $ScopeId | Format-Table -AutoSize }
-        '3' { break }
+        '3' { Show-ClientRenewalTest }
+        '4' { break }
         default { Write-Warning 'Opción inválida.' }
     }
-} while ($option -ne '3')
+} while ($option -ne '4')
