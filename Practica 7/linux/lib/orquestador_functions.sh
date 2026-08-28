@@ -1,6 +1,39 @@
 #!/usr/bin/env bash
 # orquestador_functions.sh - WEB vs FTP + menu Practica 7
 
+orq_nginx_fuera_de_80() {
+  # En este lab Nginx HTTP quedo en :8081 (no :8080) para no chocar con Apache :80.
+  if [[ -e /etc/nginx/sites-enabled/reprobados-ssl ]]; then
+    rm -f /etc/nginx/sites-enabled/default
+    nginx -t && systemctl reload nginx 2>/dev/null || systemctl start nginx || true
+    info 'Nginx ya usa reprobados-ssl (HTTP :8081 -> HTTPS :8443). Se omite default.'
+    return 0
+  fi
+  if [[ -e /etc/nginx/sites-enabled/lab-http ]]; then
+    rm -f /etc/nginx/sites-enabled/default
+    nginx -t && systemctl reload nginx 2>/dev/null || systemctl start nginx || true
+    info 'Nginx ya usa lab-http (Practica 6). Se omite default :8081.'
+    return 0
+  fi
+  [[ -f /etc/nginx/sites-available/default ]] || return 0
+  puerto_en_uso 80 || return 0
+  mkdir -p /var/www/nginx
+  [[ -f /var/www/nginx/index.html ]] || echo '<h1>Nginx</h1>' > /var/www/nginx/index.html
+  cat > /etc/nginx/sites-available/default <<'EOF'
+server {
+    listen 8081 default_server;
+    listen [::]:8081 default_server;
+    server_name _;
+    root /var/www/nginx;
+    index index.html;
+}
+EOF
+  rm -f /etc/nginx/sites-enabled/default
+  ln -sfn /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+  nginx -t && systemctl reload nginx || systemctl restart nginx || true
+  info 'Nginx WEB movido a :8081 para no chocar con Apache :80.'
+}
+
 orq_instalar_web() {
   echo 'Fuente WEB (apt). Servicio:'
   echo '  [1] Apache2  [2] Nginx  [3] Tomcat (paquete)  [4] vsftpd'
@@ -8,8 +41,14 @@ orq_instalar_web() {
   export DEBIAN_FRONTEND=noninteractive
   case $s in
     1) instalar_paquete apache2 ;;
-    2) instalar_paquete nginx ;;
-    3) instalar_paquete default-jdk-headless tomcat10 || instalar_paquete tomcat9 ;;
+    2)
+      instalar_paquete nginx
+      orq_nginx_fuera_de_80
+      ;;
+    3)
+      instalar_paquete default-jdk-headless
+      instalar_paquete tomcat10 || instalar_paquete tomcat9
+      ;;
     4) instalar_paquete vsftpd ;;
     *) echo 'Opcion invalida.'; return ;;
   esac
@@ -25,20 +64,22 @@ orq_instalar_web() {
 }
 
 orq_instalar_ftp() {
-  local bin
-  ftp_navegar_descargar
+  local bin base
+  ftp_navegar_descargar || return 1
   bin=$FTP_SELECTED_BIN
-  [[ -n $bin && -f $bin ]] || die 'La descarga FTP no produjo un instalador valido.'
-  ftp_instalar_binario "$bin"
+  [[ -n $bin && -f $bin ]] || { fail 'La descarga FTP no produjo un instalador valido.'; return 1; }
+  ftp_instalar_binario "$bin" || return 1
   ok "Instalado desde FTP: $(basename "$bin")"
-  ask_sn && {
-    case $(basename "$bin") in
+  base=$(basename "$bin")
+  if ask_sn; then
+    case $base in
       apache2*|apache*) ssl_apache ;;
       nginx*) ssl_nginx ;;
       *tomcat*|*.tar.gz|*.tgz) ssl_tomcat ;;
+      *vsftpd*) ssl_vsftpd ;;
       *) info 'Active SSL despues con el menu [4] segun el servicio.' ;;
     esac
-  }
+  fi
 }
 
 orq_recordar_cliente() {
@@ -54,6 +95,7 @@ EOF
 }
 
 menu_p7() {
+  set +e
   while true; do
     echo
     echo '=================================================='
