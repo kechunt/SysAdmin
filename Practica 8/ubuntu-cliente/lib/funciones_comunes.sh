@@ -53,3 +53,12 @@ instalar_paquete() {
   apt-get update -qq
   apt-get install -y "${faltan[@]}" || die "Fallo apt: ${faltan[*]}"
 }
+
+instalar_paquete_opcional() {
+  local p
+  export DEBIAN_FRONTEND=noninteractive
+  for p in "$@"; do
+    paquete_instalado "$p" && continue
+    apt-get install -y "$p" 2>/dev/null || info "Opcional no instalado: $p"
+  done
+}
