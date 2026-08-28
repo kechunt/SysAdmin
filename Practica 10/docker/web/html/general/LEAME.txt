@@ -1,0 +1,2 @@
+Carpeta /general — acceso anónimo FTP (solo lectura).
+Suba archivos aquí con ftp_reprobado o ftp_recursador (prueba 10.3).

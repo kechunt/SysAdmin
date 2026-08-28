@@ -1,0 +1,142 @@
+# docker-compose.yml — Práctica 10
+# Red infra_red 172.20.0.0/16 · volúmenes db_data y web_content · límites 512M / 0.50 CPU
+
+name: p10
+
+services:
+  db:
+    build:
+      context: ./db
+      dockerfile: Dockerfile
+    image: p10-db:local
+    container_name: db
+    hostname: db
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-p10}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-P10#Usuarios}"
+      POSTGRES_DB: ${POSTGRES_DB:-usuarios}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      infra_red:
+        ipv4_address: 172.20.1.12
+    mem_limit: 512m
+    cpus: '0.50'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U p10 -d usuarios']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    image: p10-web:local
+    container_name: web
+    hostname: web
+    restart: unless-stopped
+    init: true
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-p10}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-P10#Usuarios}"
+      POSTGRES_DB: ${POSTGRES_DB:-usuarios}
+      POSTGRES_HOST: db
+    volumes:
+      - web_content:/usr/share/nginx/html
+    ports:
+      - '80:8080'
+    networks:
+      infra_red:
+        ipv4_address: 172.20.1.11
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 512m
+    cpus: '0.50'
+    cap_add:
+      - NET_RAW
+    sysctls:
+      net.ipv4.ping_group_range: '0 2147483647'
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS -o /dev/null http://127.0.0.1:8080/']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+  ftp:
+    build:
+      context: ./ftp
+      dockerfile: Dockerfile
+    image: p10-ftp:local
+    container_name: ftp
+    hostname: ftp
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST_LAN_IP: ${HOST_LAN_IP:-10.10.10.10}
+      FTP_REPROBADO_PASS: "${FTP_REPROBADO_PASS:-Reprobados#P10}"
+      FTP_RECURSADOR_PASS: "${FTP_RECURSADOR_PASS:-Recursadores#P10}"
+    volumes:
+      - web_content:/srv/ftp/web
+    ports:
+      - '0.0.0.0:21:21'
+      - '0.0.0.0:30000-30009:30000-30009'
+    networks:
+      infra_red:
+        ipv4_address: 172.20.1.13
+    depends_on:
+      - web
+    mem_limit: 512m
+    cpus: '0.50'
+    init: true
+    security_opt:
+      - seccomp:unconfined
+
+  backup:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    image: p10-backup:local
+    container_name: backup
+    hostname: backup
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-p10}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-P10#Usuarios}"
+      POSTGRES_DB: ${POSTGRES_DB:-usuarios}
+      POSTGRES_HOST: db
+      BACKUP_INTERVAL: ${BACKUP_INTERVAL:-300}
+    volumes:
+      - ${P10_BACKUP_DIR:-/var/backups/p10-pg}:/backups
+    networks:
+      infra_red:
+        ipv4_address: 172.20.1.14
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 256m
+    cpus: '0.25'
+
+volumes:
+  db_data:
+    name: db_data
+  web_content:
+    name: web_content
+
+networks:
+  infra_red:
+    name: infra_red
+    driver: bridge
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>reprobados.com — Práctica 10</title>
+  <link rel="stylesheet" href="/css/estilo.css">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+</head>
+<body>
+  <header class="hero">
+    <img src="/img/logo.svg" alt="Logo reprobados.com" class="logo" width="96" height="96">
+    <div>
+      <p class="kicker">SysAdmin · contenedores</p>
+      <h1>Portal del laboratorio P10</h1>
+      <p>Imagen <strong>p10-web:local</strong> (Alpine + Nginx, sin server tokens, usuario <code>www</code>).</p>
+    </div>
+  </header>
+  <main class="wrap">
+    <section class="cards">
+      <article>
+        <h2>Estáticos</h2>
+        <p>Esta página carga CSS e imagen SVG propios del Dockerfile. No es un <code>docker pull nginx</code> sin personalizar.</p>
+      </article>
+      <article>
+        <h2>Usuarios</h2>
+        <p>Listado generado desde PostgreSQL (<a href="/usuarios.html">/usuarios.html</a>).</p>
+      </article>
+      <article>
+        <h2>FTP → web</h2>
+        <p>Suba instaladores a <code>/general</code> o <code>/instaladores</code> y ábralos aquí:</p>
+        <ul>
+          <li><a href="/general/">/general/</a></li>
+          <li><a href="/instaladores/">/instaladores/</a></li>
+        </ul>
+      </article>
+    </section>
+  </main>
+  <footer>
+    <p>Red <code>infra_red</code> 172.20.0.0/16 · volúmenes <code>web_content</code> y <code>db_data</code></p>
+  </footer>
+</body>
+</html>

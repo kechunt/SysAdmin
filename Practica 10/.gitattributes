@@ -1,0 +1,5 @@
+# Scripts y Dockerfiles con LF (bash falla con CRLF)
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.conf text eol=lf

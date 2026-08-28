@@ -1,0 +1,1 @@
+Carpeta /instaladores — destino de instaladores subidos por FTP (grupos reprobados/recursadores).
